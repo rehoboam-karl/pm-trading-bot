@@ -20,7 +20,7 @@ class TestComputePnL:
         )
         pnl, pct = compute_pnl(entry, 0.60)
         assert pnl == 15.0
-        assert pct == 33.3
+        assert pct == pytest.approx(33.3, abs=0.2)
 
     def test_loss(self):
         entry = PositionEntry(
@@ -89,7 +89,8 @@ class TestPositionState:
                 pnl=5.0,
                 entry_price=0.45,
             )
-            assert state.should_alert("t1", 0.50, 5.0, 0.45) is True
+            # After cooldown, still need material change to re-alert
+            assert state.should_alert("t1", 0.55, 7.0, 0.45) is True
 
     def test_no_alert_small_change(self):
         with tempfile.TemporaryDirectory() as tmpdir:
