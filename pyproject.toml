@@ -1,0 +1,18 @@
+[project]
+name = "pm-trading-bot"
+version = "0.1.0"
+description = "Position tracking and P&L monitoring for Polymarket copy-trading bots"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Fernando Karl Aigner"}]
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
