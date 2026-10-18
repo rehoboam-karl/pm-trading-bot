@@ -2,61 +2,66 @@
 
 > Reference implementation for a Polymarket copy-trading bot in Python.
 
-`pm-trading-bot` is the orchestration layer: it tracks positions, computes P&L,
-sends Telegram alerts, and coordinates with the scoring and execution layers.
+[![CI](https://github.com/rehoboam-karl/pm-trading-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/rehoboam-karl/pm-trading-bot/actions)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**What it does:**
-- Tracks open positions with entry price, size, and timestamp
-- Computes unrealized P&L in real-time using CLOB book prices
-- Sends Telegram alerts on position changes (won/lost/open P&L updates)
-- Cooldown-aware alerting (no spam)
-- Persists state to disk (survives restarts)
-- Daemon mode for continuous monitoring
+`pm-trading-bot` is the orchestration layer for Polymarket copy trading:
+position tracking, real-time P&L computation, and Telegram alerts.
 
-**Architecture:**
-
-```
-pm-trading-bot/
-├── position_monitor.py    ← Position tracking + P&L + Telegram alerts
-├── whale_pnl_tracker.py   ← Per-whale P&L attribution
-└── entry_scorer_server.py ← Async HTTP scorer (uvloop + aiohttp)
-```
-
-**Combine with:**
-- [`pm-whale-scout`](https://github.com/rehoboam-karl/pm-whale-scout) — whale discovery
-- [`pm-core`](https://github.com/rehoboam-karl/pm-core) — Rust risk/market engine
+**No API keys required for position tracking** — uses the public Polymarket CLOB.
 
 ---
 
-## Quick Start
+## Install
 
 ```bash
 pip install requests python-dotenv
-export TELEGRAM_BOT_TOKEN="..."
-export TELEGRAM_CHAT_ID="..."
-export OUTPUT_DIR="./data"
-
-python position_monitor.py
 ```
 
-Daemon mode:
+## Usage
 
 ```bash
+# Run once
+python position_monitor.py
+
+# Run continuously (daemon mode)
 python position_monitor.py --continuous --interval 60
 ```
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | — | Your Telegram bot token |
-| `TELEGRAM_CHAT_ID` | — | Destination chat ID |
-| `OUTPUT_DIR` | `./data` | Where to store state files |
-| `ALERT_COOLDOWN_SECONDS` | 300 | Min seconds between alerts per token |
+```bash
+export TELEGRAM_BOT_TOKEN="..."
+export TELEGRAM_CHAT_ID="..."
+export OUTPUT_DIR="./data"    # default: ./data
+```
 
-## Position Entry Tracking
+## Architecture
 
-You can inject entries from your trading engine:
+```
+┌──────────────────────────────────────────┐
+│           Trading Engine                   │
+│   (copies whale trades based on signals)  │
+└──────────────────┬───────────────────────┘
+                   │ track_entry()
+                   ▼
+┌──────────────────────────────────────────┐
+│        position_monitor.py                 │
+│  • Tracks open positions + entry prices   │
+│  • Checks CLOB for current prices (60s)   │
+│  • Computes unrealized P&L                │
+│  • Sends Telegram alerts on changes       │
+│  • Cooldown-aware (no alert spam)         │
+│  • Persists state to disk (survives restarts) │
+└──────────────────────────────────────────┘
+```
+
+## Key concepts
+
+### Position Entry
+
+Inject entries from your trading engine when a trade is placed:
 
 ```python
 from position_monitor import PositionState, STATE_FILE, ENTRY_TRACKER_FILE
@@ -67,27 +72,25 @@ state.track_entry(
     outcome="Yes",
     entry_price=0.45,
     size=100.0,
-    timestamp=datetime.utcnow().isoformat() + "Z",
+    timestamp="2026-01-01T00:00:00Z",
 )
 ```
 
-## Architecture
+### Alert Cooldown
 
+The monitor tracks when alerts were sent per token and won't re-alert
+within `ALERT_COOLDOWN_SECONDS` (default: 300s = 5 minutes).
+Even after cooldown, only material changes trigger re-alert
+(price change >5% or P&L change >$5).
+
+### P&L Computation
+
+```python
+pnl, pnl_pct = compute_pnl(entry, current_price)
+# Returns (pnl_dollars, pnl_pct)
 ```
-┌─────────────────────────────────────────────────────┐
-│                  Your Trading Engine                │
-│   (copies whale trades based on scoring signals)    │
-└──────────────────────┬──────────────────────────────┘
-                       │ track_entry()
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│              position_monitor.py                     │
-│  • Tracks open positions + entry prices             │
-│  • Checks CLOB for current prices every N seconds    │
-│  • Computes P&L (unrealized)                        │
-│  • Sends Telegram alerts on significant changes     │
-└─────────────────────────────────────────────────────┘
-```
+
+P&L is calculated as: `(current_price * size) - entry_cost`
 
 ## Alert Format
 
@@ -101,6 +104,35 @@ P&L: +$17.00 (+37.8%)
 Size: 100.00 shares
 Held: 2h 15m
 ```
+
+## Integration
+
+### With pm-core (Rust)
+
+```
+whale_signal → pm-core risk/market checks → order filled
+                                    ↓
+                          track_entry() called
+                                    ↓
+                          position_monitor.py monitors
+```
+
+### With pm-whale-scout
+
+```
+whale_scout.py --json → current_whales list
+                            ↓
+              passed to recommend_changes() or --current flag
+```
+
+## State Files
+
+| File | What it stores |
+|------|---------------|
+| `position_monitor_state.json` | Alert cooldown records |
+| `position_entries.json` | Open position entries |
+
+State survives restarts. Delete these files to reset state.
 
 ## License
 
