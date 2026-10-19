@@ -7,16 +7,23 @@ from pathlib import Path
 import pytest
 
 from position_monitor import (
-    PositionState, PositionEntry, PositionStatus,
-    compute_pnl, AlertRecord,
+    AlertRecord,
+    PositionEntry,
+    PositionState,
+    PositionStatus,
+    compute_pnl,
 )
 
 
 class TestComputePnL:
     def test_profit(self):
         entry = PositionEntry(
-            token_id="t1", outcome="Yes", entry_price=0.45,
-            size=100.0, cost=45.0, timestamp="2026-01-01T00:00:00Z",
+            token_id="t1",
+            outcome="Yes",
+            entry_price=0.45,
+            size=100.0,
+            cost=45.0,
+            timestamp="2026-01-01T00:00:00Z",
         )
         pnl, pct = compute_pnl(entry, 0.60)
         assert pnl == 15.0
@@ -24,8 +31,12 @@ class TestComputePnL:
 
     def test_loss(self):
         entry = PositionEntry(
-            token_id="t1", outcome="Yes", entry_price=0.50,
-            size=100.0, cost=50.0, timestamp="2026-01-01T00:00:00Z",
+            token_id="t1",
+            outcome="Yes",
+            entry_price=0.50,
+            size=100.0,
+            cost=50.0,
+            timestamp="2026-01-01T00:00:00Z",
         )
         pnl, pct = compute_pnl(entry, 0.30)
         assert pnl == -20.0
@@ -33,8 +44,12 @@ class TestComputePnL:
 
     def test_no_cost(self):
         entry = PositionEntry(
-            token_id="t1", outcome="Yes", entry_price=0.0,
-            size=0.0, cost=0.0, timestamp="2026-01-01T00:00:00Z",
+            token_id="t1",
+            outcome="Yes",
+            entry_price=0.0,
+            size=0.0,
+            cost=0.0,
+            timestamp="2026-01-01T00:00:00Z",
         )
         pnl, pct = compute_pnl(entry, 0.50)
         assert pnl == 0.0
@@ -49,8 +64,10 @@ class TestPositionState:
             state = PositionState(sf, ef)
 
             state.track_entry(
-                token_id="t1", outcome="Yes",
-                entry_price=0.45, size=100.0,
+                token_id="t1",
+                outcome="Yes",
+                entry_price=0.45,
+                size=100.0,
                 timestamp="2026-01-01T00:00:00Z",
             )
             assert "t1" in state.entries

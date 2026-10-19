@@ -1,3 +1,6 @@
+[tool.setuptools]
+py-modules = ["position_monitor"]
+
 [project]
 name = "pm-trading-bot"
 version = "0.1.0"
